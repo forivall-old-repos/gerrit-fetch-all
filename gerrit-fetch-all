@@ -1,7 +1,31 @@
 #! /bin/sh
-REMOTE="${1-review}"
-git ls-remote "${REMOTE}" | grep /changes/ | awk '{print $2;}' | while read REF
-do
-	git fetch "${REMOTE}" "${REF}"
-	git branch `echo "${REF}" | sed 's#refs/changes/../#change/#'` FETCH_HEAD
+REMOTE="${1-origin}"
+# REMOTE="${1-review}"
+# TODO: convert to python to avoid all these seds and awks
+COUNT=0
+ORIG_LINES=$(git ls-remote "${REMOTE}" | grep /changes/)
+COUNT=$(echo "$ORIG_LINES" | wc -l)
+# N=0
+N=10000
+echo "$ORIG_LINES" | awk '{print $2 " " $2;}' | sed 's#refs/changes/../#change/#' |
+# TODO: do fetches backward, and abort on first branch found
+sort -V | while read CHANGE_REF ; do
+    N=$(( $N + 1 ))
+    # CHANGE=$(echo $CHANGE_REF | awk '{print $1}')
+    # REF=$(echo $CHANGE_REF | awk '{print $2}')
+    CHANGE=${CHANGE_REF%% *}
+    REF=${CHANGE_REF##* }
+    echo -n "$N/$COUNT\r"
+    git rev-parse $CHANGE 2> /dev/null > /dev/null
+    result=$?
+    if [ "$result" != '0' ] ; then
+        echo
+        git fetch "${REMOTE}" "${REF}"
+        # TODO: tag instead of branch
+        if test -n "$CHANGE" ; then
+            git branch "$CHANGE" "FETCH_HEAD"
+        else
+            echo "WTF"
+        fi
+    fi
 done
